@@ -73,16 +73,14 @@ class RenderCrud extends Render implements ViewContextInterface, RenderCrudInter
     }
     
     /**
-     * Generates an array with all attributes an the corresponding label.
-     *
-     * @return array
-     * @since 1.2.2
+     * 
+     * @return NULL[]
      */
     public function generateDownloadAttributes()
     {
         $attributes = [];
-        foreach ($this->model->attributes() as $key) {
-            $attributes[$key] = $this->model->getAttributeLabel($key) . ' ('.$key.')';
+        foreach ($this->model->attributes as $key => $atr) {
+            $attributes[$key] = $this->model->getAttributeLabel($key);
         }
         
         return $attributes;
