@@ -66,7 +66,7 @@
 			}
 
 			if (type == 0) {
-				$http.get($scope.config.apiEndpoint + '/unlock');
+				$http.get($scope.config.apiEndpoint + '/unlock', {ignoreLoadingBar: true});
 			}
 
 			if (type == 0 || type == 1) {
@@ -108,36 +108,52 @@
 				$scope.config.groupBy = 1;
 			}
 		};
-
-		/********** EXPORT ****/
-
-		$scope.exportLoading = false;
-
+		
+		/********* SETTINGS DROPDOWN MENU ******/
+		
+		$scope.isSettingsVisible = false;
+		
+		$scope.toggleSettingsMenu = function() {
+			$scope.isSettingsVisible = !$scope.isSettingsVisible;
+		};
+		
+		$scope.hiddeSettingsMenu = function() {
+			$scope.isSettingsVisible = false;
+		};
+		
+		/********* NEW EXPORT MODAL ******/
+		
+		$scope.isExportModalHidden = true;
+		
+		$scope.exportdata = {header:1,type:"xlsx"};
+		
+		$scope.toggleExportModal = function() {
+			$scope.isExportModalHidden = !$scope.isExportModalHidden;
+		};
+		
 		$scope.exportResponse = false;
-
-		$scope.exportDownloadButton = false;
-
-		$scope.exportData = function() {
-			$scope.exportLoading = true;
-			$http.get($scope.config.apiEndpoint + '/export').then(function(response) {
-				$scope.exportLoading = false;
+		
+		$scope.generateExport = function() {
+			$http.post($scope.config.apiEndpoint + '/export', $scope.exportdata).then(function(response) {
 				$scope.exportResponse = response.data;
-				$scope.exportDownloadButton = true;
 			});
 		};
-
-		$scope.exportDownload = function() {
-			$scope.exportDownloadButton = false;
-			window.open($scope.exportResponse.url);
+		
+		$scope.downloadExport = function() {
+			var url = $scope.exportResponse.url;
+			$scope.exportResponse = false;
+			window.open(url);
 			return false;
 		};
+		
+		/********** CRUD LIST *******/
 
 		$scope.applySaveCallback = function() {
-			if ($scope.config.saveCallback) {
-				$injector.invoke($scope.config.saveCallback, this);
-			}
+			if ($scope.config.saveCallback) {	
+				$injector.invoke($scope.config.saveCallback, this);	
+			}	
 		};
-
+		
 		$scope.showCrudList = true;
 
 		/*********** ORDER **********/
@@ -183,7 +199,7 @@
 				$scope.data.aw.configHash = $scope.config.ngrestConfigHash;
 				$scope.data.aw.hash = activeWindowId;
 				$scope.data.aw.content = $sce.trustAsHtml(response.data.content);
-				$scope.data.aw.title = response.data.label;
+				$scope.data.aw.title = response.data.title;
 				$scope.$broadcast('awloaded', {id: activeWindowId});
 			})
 		};
@@ -244,7 +260,7 @@
 							$scope.config.pagerHiddenByAjaxSearch = true;
 							blockRequest = false;
 							$scope.config.fullSearchContainer = response.data;
-							$scope.data.listArray = $filter('filter')(response.data, n);
+							$scope.data.listArray = response.data; 
 						});
 					}, 500)
 				}
@@ -982,6 +998,11 @@
 			$scope.debugDetail = debugDetail;
 			$scope.debugDetailKey = key;
 		};
+		
+		$scope.closeDebugDetail = function() {
+			$scope.debugDetail = null;
+			$scope.debugDetailKey = null;
+		};
 
 		$scope.notify = null;
 
@@ -1097,7 +1118,7 @@
 						$http.get('admin/api-admin-search', { params : { query : n}}).then(function(response) {
 							$scope.searchResponse = response.data;
 						});
-					}, 400)
+					}, 800)
 				} else {
 	                $scope.searchResponse = null;
 				}

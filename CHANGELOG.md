@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file. This project make usage of the [Yii Versioning Strategy](https://github.com/yiisoft/yii2/blob/master/docs/internals/versions.md). In order to read more about upgrading and BC breaks have a look at the [UPGRADE Document](UPGRADE.md).
 
+## 1.2.2 (in progress)
+
+### Changed
+
++ [#159](https://github.com/luyadev/luya-module-admin/issues/159) Refactor generic search behavior to return ActiveQuery object, improved speed and remove global search ngrest api endpoints.
+
+### Added
+
++ [#164](https://github.com/luyadev/luya-module-admin/pull/164) Turkish translations for admin and core modules.
++ [#161](https://github.com/luyadev/luya-module-admin/issues/161) NgRest CRUD exporter provides now the option to download xlsx.
++ [#157](https://github.com/luyadev/luya-module-admin/issues/157) Added `getTitle()` method for Active Windows in order to provide model context modal titles.
+
+### Fixed
+
++ [#172](https://github.com/luyadev/luya-module-admin/issues/172) API users should not have default language from UI.
++ [#171](https://github.com/luyadev/luya-module-admin/issues/171) Fixed issue with link label when link has been set already.
++ [#70](https://github.com/luyadev/luya-module-admin/issues/70) Added styles and "disabled" click event for the active zaaselect dropdown item
++ [#167](https://github.com/luyadev/luya-module-admin/issues/167) NgRest FileArray plugin override the filesystem caption.
++ [#156](https://github.com/luyadev/luya-module-admin/issues/156) Do not display API users in global search.
++ [#158](https://github.com/luyadev/luya-module-admin/issues/158) Searching in CRUD pagination fallback applied the angular filter, therefore values found in `ngRestFullQuerySearch()` where hidden by angular filter if they where not in the ngrest list scope.
++ [#152](https://github.com/luyadev/luya-module-admin/issues/152) Added proper `Content-Type` header with MIME type when delivering download files.
++ [#166](https://github.com/luyadev/luya-module-admin/issues/166) Fixed bug with old admin user table structure where is_deleted has no default value.
+
 ## 1.2.1 (5. June 2018)
 
 ### Added

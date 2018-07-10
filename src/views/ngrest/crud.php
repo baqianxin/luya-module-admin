@@ -1,6 +1,7 @@
 <?php
 use luya\admin\ngrest\render\RenderCrud;
 use luya\admin\Module;
+use luya\admin\helpers\Angular;
 
 /** @var $config \luya\admin\ngrest\ConfigInterface */
 /** @var $this \luya\admin\ngrest\render\RenderCrudView */
@@ -18,20 +19,23 @@ $this->beginBody();
         <?php if (!$isInline): ?>
             <div class="crud-header">
                 <h1 class="crud-title"><?= $currentMenu['alias']; ?></h1>
+                <modal is-modal-hidden="isExportModalHidden" modal-title="<?= Module::t('crud_exportdata_btn'); ?>">
+                    <div ng-if="!isExportModalHidden">
+                        <?= Angular::radio('exportdata.header', Module::t('crud_exportdata_col_header'), [1 => Module::t('button_yes'), 0 => Module::t('button_no')]); ?>
+                        <?= Angular::radio('exportdata.type', Module::t('crud_exportdata_col_format'), ['xlsx' => Module::t('crud_exportdata_col_format_xlsx'), 'csv' => Module::t('crud_exportdata_col_format_csv')]); ?>
+                        <?= Angular::checkboxArray('exportdata.attributes', Module::t('crud_exportdata_col_columns'), $downloadAttributes, ['preselect' => true]); ?>
+                        <button ng-hide="exportResponse" type="button" class="btn btn-icon btn-secondary" ng-click="generateExport()"><?= Module::t('crud_exportdata_btn_generateexport')?></button>
+                        <button ng-show="exportResponse" type="button" class="btn btn-icon btn-download" ng-click="downloadExport()"><?= Module::t('crud_exportdata_btn_downloadexport'); ?></button>
+                    </div>
+                </modal>
                 <div class="crud-toolbar">
-                    <div class="btn-group" ng-class="{'show': toggleSettings}">
-                        <button class="btn btn-toolbar" type="button" ng-click="toggleSettings=!toggleSettings">
+                    <div class="btn-group" ng-class="{'show': isSettingsVisible}">
+                        <button class="btn btn-toolbar" type="button" ng-click="toggleSettingsMenu()">
                             <i class="material-icons">more_vert</i>
                         </button>
-                        <div class="dropdown-menu dropdown-menu-right" ng-class="{'show': toggleSettings}">
-                            <a class="dropdown-item" ng-show="!exportDownloadButton && !exportLoading" ng-click="exportData()">
-                                <i class="material-icons">get_app</i><span><?= Module::t('ngrest_crud_csv_export_btn'); ?></span>
-                            </a>
-                            <a class="dropdown-item" ng-show="exportLoading">
-                                <i class="material-icons spin">cached</i>
-                            </a>
-                            <a class="dropdown-item" ng-show="exportDownloadButton" ng-click="exportDownload()">
-                               <i class="material-icons">get_app</i><span><?= Module::t('ngrest_crud_csv_export_btn_dl'); ?></span>
+                        <div class="dropdown-menu dropdown-menu-right" ng-class="{'show': isSettingsVisible}">
+                            <a class="dropdown-item" ng-click="toggleExportModal()">
+                                <i class="material-icons">get_app</i><span><?= Module::t('crud_exportdata_btn'); ?></span>
                             </a>
                             <?php foreach ($this->context->getSettingButtonDefinitions() as $button): ?>
                                 <?= $button; ?>
@@ -156,7 +160,7 @@ $this->beginBody();
                                 <i class="material-icons right" ng-show="viewToggler[key]">keyboard_arrow_down</i>
                             </td>
                         </tr>
-                        <tr ng-repeat="(k, item) in items track by k | srcbox:config.searchString" ng-show="viewToggler[key]" <?php if ($isInline && !$relationCall && $modelSelection): ?>ng-class="{'crud-selected-row': getRowPrimaryValue(item) == <?= $modelSelection?>}"class="crud-selectable-row"<?php endif; ?>>
+                        <tr ng-repeat="(k, item) in items track by k" ng-show="viewToggler[key]" <?php if ($isInline && !$relationCall && $modelSelection): ?>ng-class="{'crud-selected-row': getRowPrimaryValue(item) == <?= $modelSelection?>}"class="crud-selectable-row"<?php endif; ?>>
                             <?php $i = 0; foreach ($config->getPointer('list') as $item): $i++; ?>
                                 <?php foreach ($this->context->createElements($item, RenderCrud::TYPE_LIST) as $element): ?>
                                      <td <?php if ($isInline && !$relationCall && $modelSelection !== false): ?>ng-click="parentSelectInline(item)" <?php endif; ?>class="<?= $i != 1 ?: 'tab-padding-left'; ?>"><?= $element['html']; ?></td>

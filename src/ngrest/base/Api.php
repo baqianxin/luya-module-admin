@@ -19,9 +19,14 @@ use luya\admin\ngrest\render\RenderActiveWindowCallback;
 use luya\admin\ngrest\NgRest;
 use yii\web\NotFoundHttpException;
 use yii\db\ActiveQuery;
+use luya\helpers\ArrayHelper;
 
 /**
  * The RestActiveController for all NgRest implementations.
+ *
+ * When pagination is enabled (by setting {{$pagination}} property or if {{$autoEnablePagination}} apply) the crud search will be performed trough an
+ * async request instead of angular filtering. Angular filtering is searching for the string in the response, while async full search does
+ * call the {{actionFullResponse()}} method trough the api, which will the call the {{luya\admin\ngrest\base\NgRestModel::ngRestFullQuerySearch()}} method.
  *
  * @property \luya\admin\ngrest\NgRestModel $model Get the model object based on the $modelClass property.
  *
@@ -41,12 +46,21 @@ class Api extends RestActiveController
     public $modelClass;
     
     /**
-     * @var boolean Defines whether the automatic pagination should be enabled if more then 200 rows of data stored in this table or not.
+     * @var boolean Defines whether the automatic pagination should be enabled if more then 200 rows of data stored in this table or not. You can also
+     * enable pagination by setting the pagination property like:
+     *
+     * ```php
+     * public $pagination = ['defaultPageSize' => 100];
+     * ```
+     *
+     * If its enabled like the example above, the {{$pageSize}} param is ignored.
      */
     public $autoEnablePagination = true;
     
     /**
-     * @var integer When pagination is enabled, this value is used for pagination rows by page.
+     * @var integer When {{$autoEnablePagination}} is enabled this value will be used for page size. If you are enabling pagination by setting
+     * the {{$pagination}} property `$pagination = ['defaultPageSize' => 100]` this {{$pageSize}} property will be ignored!
+     * ```
      */
     public $pageSize = 100;
     
@@ -60,19 +74,78 @@ class Api extends RestActiveController
         if ($this->modelClass === null) {
             throw new InvalidConfigException("The property `modelClass` must be defined by the Controller.");
         }
-
+    }
+    
+    /**
+     * Enables the pagination for the current API for a given circumstances.
+     *
+     * @since 1.2.2
+     */
+    public function ensureAutoPagination()
+    {
         // pagination is disabled by default, lets verfy if there are more then 400 rows in the table and auto enable
         if ($this->pagination === false && $this->autoEnablePagination) {
             if ($this->model->ngRestFind()->count() > ($this->pageSize*2)) {
-                $this->pagination = ['pageSize' => $this->pageSize];
+                $this->pagination = ['defaultPageSize' => $this->pageSize];
             }
         }
     }
     
     /**
+     * Auto add those relations to queries.
+     * 
+     * This can be either an array with relations which will be passed to `index, list and view` or an array with a subdefintion in order to define
+     * which relation should be us when.
+     * 
+     * basic:
+     * 
+     * ```php
+     * return ['user', 'images'];
+     * ```
+     * 
+     * The above relations will be auto added trough {{yii\db\ActiveQuery::with()}}. In order to define view specific actions:
+     * 
+     * ```php
+     * return [
+     *     'index' => ['user', 'images'],
+     *     'list' => ['user'],
+     *     'view' => ['images', 'files'],
+     * ];
+     * ```
+     * 
+     * @return array
+     * @since 1.2.2
+     */
+    public function withRelations()
+    {
+        return [];
+    }
+    
+    /**
+     * Get the relations for the corresponding action name.
+     * 
+     * @param string $actionName The action name like `index`, `list` or `view`.
+     * @return array An array with relation names.
+     * @since 1.2.2
+     */
+    public function getWithRelation($actionName)
+    {
+        $rel = $this->withRelations();
+        
+        foreach ($rel as $relationName) {
+            // it seem to be the advance strucutre for given actions.
+            if (is_array($relationName)) {
+                return isset($rel[$actionName]) ?: [];
+            }
+        }
+        // simple structure
+        return $rel;
+    }
+    
+    /**
      * Prepare Index Query.
      *
-     * You can override the prepare index query to preload relation data like
+     * You can override the prepare index query to preload relation data like this:
      *
      * ```php
      * public function prepareIndexQuery()
@@ -81,6 +154,8 @@ class Api extends RestActiveController
      * }
      * ```
      *
+     * Make sure to call the parent implementation!
+     *
      * @return \yii\db\ActiveQuery
      * @since 1.2.1
      */
@@ -88,7 +163,7 @@ class Api extends RestActiveController
     {
         /* @var $modelClass \yii\db\BaseActiveRecord */
         $modelClass = $this->modelClass;
-        return $modelClass::ngRestFind();
+        return $modelClass::ngRestFind()->with($this->getWithRelation('index'));
     }
     
     /**
@@ -98,6 +173,12 @@ class Api extends RestActiveController
     {
         $actions = [
             'index' => [
+                'class' => 'luya\admin\ngrest\base\actions\IndexAction',
+                'modelClass' => $this->modelClass,
+                'checkAccess' => [$this, 'checkAccess'],
+                'prepareActiveDataQuery' => [$this, 'prepareIndexQuery'],
+            ],
+            'list' => [ // for ngrest list
                 'class' => 'luya\admin\ngrest\base\actions\IndexAction',
                 'modelClass' => $this->modelClass,
                 'checkAccess' => [$this, 'checkAccess'],
@@ -224,52 +305,6 @@ class Api extends RestActiveController
             ],
         ];
     }
-
-    /**
-     * Search API.
-     *
-     * This action is mainly used by  {{luya\admin\apis\SearchController}}.
-     *
-     * @param string $query
-     * @return string
-     */
-    public function actionSearch($query)
-    {
-        $this->checkAccess('search');
-        
-        return $this->model->genericSearch($query);
-    }
-
-    /**
-     * Search API Provider.
-     *
-     * The searchProvider provides informations about how the admin UI can render the clickable links
-     * for the found results.
-     *
-     * This action is mainly used by  {{luya\admin\apis\SearchController}} defined by {{luya\admin\base\GenericSearchInterface::genericSearchStateProvider}}
-     *
-     * @return array
-     */
-    public function actionSearchProvider()
-    {
-        $this->checkAccess('search-provider');
-        
-        return $this->model->genericSearchStateProvider();
-    }
-    
-    /**
-     * Search API Hidden Fields
-     *
-     * This action is mainly used by {luya\admin\apis\SearchController}}.
-     *
-     * @return array
-     */
-    public function actionSearchHiddenFields()
-    {
-        $this->checkAccess('search-hidden-fields');
-        
-        return $this->model->genericSearchHiddenFields();
-    }
     
     /**
      * Generate a response with pagination disabled.
@@ -350,6 +385,8 @@ class Api extends RestActiveController
             throw new InvalidCallException("The requested filter does not exists in the filter list.");
         }
 
+        $this->ensureAutoPagination();
+        
         return new ActiveDataProvider([
             'query' => $model->ngRestFilters()[$filterName],
             'pagination' => $this->pagination,
@@ -393,6 +430,7 @@ class Api extends RestActiveController
             'content' => $ngrest->render($render),
             'icon' => $render->getActiveWindowObject()->getIcon(),
             'label' => $render->getActiveWindowObject()->getLabel(),
+            'title' => $render->getActiveWindowObject()->getTitle(),
             'requestDate' => time(),
         ];
     }
@@ -407,7 +445,23 @@ class Api extends RestActiveController
     {
         $this->checkAccess('export');
         
-        $tempData = ExportHelper::csv($this->model->find());
+        $header = Yii::$app->request->getBodyParam('header', 1);
+        $type = Yii::$app->request->getBodyParam('type');
+        $attributes = Yii::$app->request->getBodyParam('attributes', []);
+        $fields = ArrayHelper::getColumn($attributes, 'value');
+        
+        switch (strtolower($type)) {
+            case "csv":
+                $mime = 'application/csv';
+                $extension = 'csv';
+                break;
+            case "xlsx":
+                $mime = 'application/vnd.ms-excel';
+                $extension = 'xlsx';
+                break;
+        }
+        
+        $tempData = ExportHelper::$type($this->model->find()->select($fields), $fields, (bool) $header);
         
         $key = uniqid('ngre', true);
         
@@ -419,8 +473,8 @@ class Api extends RestActiveController
         $route = str_replace("/index", "/export-download", $route);
         
         if ($store) {
-            Yii::$app->session->set('tempNgRestFileName', Inflector::slug($this->model->tableName())  . '-export-'.date("Y-m-d-H-i").'.csv');
-            Yii::$app->session->set('tempNgRestFileMime', 'application/csv');
+            Yii::$app->session->set('tempNgRestFileName', Inflector::slug($this->model->tableName())  . '-export-'.date("Y-m-d-H-i").'.' . $extension);
+            Yii::$app->session->set('tempNgRestFileMime', $mime);
             Yii::$app->session->set('tempNgRestFileKey', $key);
             return [
                 'url' => Url::toRoute(['/'.$route, 'key' => base64_encode($key)]),

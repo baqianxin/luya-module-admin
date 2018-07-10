@@ -2,8 +2,8 @@
 adminServiceResolver = ['ServiceFoldersData', 'ServiceImagesData', 'ServiceFilesData', 'ServiceFiltersData', 'ServiceLanguagesData', 'ServicePropertiesData', 'AdminLangService', 'ServiceFoldersDirecotryId', function(ServiceFoldersData, ServiceImagesData, ServiceFilesData, ServiceFiltersData, ServiceLanguagesData, ServicePropertiesData, AdminLangService, ServiceFoldersDirecotryId) {
 	ServiceFiltersData.load();
 	ServiceFoldersData.load();
-	ServiceImagesData.load();
-	ServiceFilesData.load();
+	//ServiceImagesData.load();
+	//ServiceFilesData.load();
 	ServiceLanguagesData.load();
 	ServicePropertiesData.load();
 	AdminLangService.load();
@@ -11,7 +11,7 @@ adminServiceResolver = ['ServiceFoldersData', 'ServiceImagesData', 'ServiceFiles
 }];
 
 /**
- * all global admin services
+ * Global LUYA Angular Services:
  * 
  * controller resolve: https://github.com/johnpapa/angular-styleguide#style-y080
  * 
@@ -22,7 +22,7 @@ adminServiceResolver = ['ServiceFoldersData', 'ServiceImagesData', 'ServiceFiles
  * 3. Service must broadcast an event 'service:FoldersData'
  * 4. Controller integration must look like
  * 
- * ```
+ * ```js
  * $scope.foldersData = ServiceFoldersData.data;
  *				
  * $scope.$on('service:FoldersData', function(event, data) {
@@ -33,7 +33,6 @@ adminServiceResolver = ['ServiceFoldersData', 'ServiceImagesData', 'ServiceFiles
  *     return ServiceFoldersData.load(true);
  * }
  * ```
- * 
  */
 	
 /*
@@ -121,22 +120,35 @@ $scope.imagesDataReload = function() {
 }
 
 */
-zaa.factory("ServiceImagesData", ['$http', '$q', '$rootScope', function($http, $q, $rootScope) {
+zaa.factory("ServiceImagesData", ['$http', '$q', '$rootScope', '$log', function($http, $q, $rootScope, $log) {
 	var service = [];
 	
-	service.data = null;
+	service.data = {};
 	
-	service.load = function(forceReload) {
+	/**
+	 * Get a given file from the storage system by its id.
+	 * 
+	 * ```js
+	 * ServiceImagesData.getImage(1).then(function(response) {
+	 *     console.log(response);
+	 * });
+	 */
+	service.getImage = function(id, forceAsyncRequest) {
 		return $q(function(resolve, reject) {
-			if (service.data !== null && forceReload !== true) {
-				resolve(service.data);
-			} else {
-				$http.get("admin/api-admin-storage/data-images").then(function(response) {
-					service.data = response.data;
-					$rootScope.$broadcast('service:ImagesData', service.data);
-					resolve(service.data);
-				});
+			
+			if (id == 0) {
+				return reject(id);
 			}
+			
+			if (service.data.hasOwnProperty(id) && forceAsyncRequest !== true) {
+				return resolve(service.data[id]);
+			}
+			
+			$http.get('admin/api-admin-storage/image-info?id='+id).then(function(response) {
+				var data = response.data;
+    			service.data[data.id] = data;
+    			return resolve(data);
+    		});
 		});
 	};
 	
@@ -156,24 +168,54 @@ $scope.filesDataReload = function() {
 }
 				
 */
-zaa.factory("ServiceFilesData", ['$http', '$q', '$rootScope', function($http, $q, $rootScope) {
+zaa.factory("ServiceFilesData", ['$http', '$q', '$rootScope', '$log', function($http, $q, $rootScope, $log) {
 	var service = [];
 	
-	service.data = null;
+	service.data = {};
 	
-	service.load = function(forceReload) {
-		return $q(function(resolve, reject) {
-			if (service.data !== null && forceReload !== true) {
-				resolve(service.data);
-			} else {
-				$http.get("admin/api-admin-storage/data-files").then(function(response) {
-					service.data = response.data;
-					$rootScope.$broadcast('service:FilesData', service.data);
-					resolve(service.data);
-				});
-			}
-		});
+	service._promises = {};
+
+	/**
+	 * Get a given file from the storage system by its id.
+	 * 
+	 * ```js
+	 * ServiceFilesData.getFile(1).then(function(response) {
+	 *     console.log(response);
+	 * });
+	 */
+	service.getFile = function(id, forceAsyncRequest) {
+		// this ensures to not have two promises at the same time
+		if (service._promises.hasOwnProperty(id)) {
+			return service._promises[id];
+		}
+
+		var promise = service.newPromise(id, forceAsyncRequest);
+		service._promises[id] = promise;
+		return promise;
 	};
+
+	/**
+	 * Generate a promise to resolve
+	 */
+	service.newPromise = function(id, forceAsyncRequest) {
+		return $q(function(resolve, reject) {
+			
+			if (id == 0) {
+				return reject(id);
+			}
+			
+			if (service.data.hasOwnProperty(id) && forceAsyncRequest !== true) {
+				return resolve(service.data[id]);
+			}
+
+			$http.get('admin/api-admin-storage/file-info?id='+id).then(function(response) {
+				var data = response.data;
+				service.data[data.id] = data;
+				delete service._promises[id];
+    			return resolve(data);
+    		});
+		});
+	}
 	
 	return service;
 }]);
@@ -283,6 +325,13 @@ zaa.factory("ServicePropertiesData", ['$http', '$q', '$rootScope', function($htt
 	return service;
 }]);
 
+/**
+ * Crud Tab Service
+ * 
+ * This service is mainly used by the NgRest CRUD system in order to inject or remove new/existing tabs.
+ * 
+ * This service is used by the NgRest relations service.
+ */
 zaa.factory("CrudTabService", function() {
 	
 	var service = [];
@@ -318,11 +367,15 @@ zaa.factory("CrudTabService", function() {
 	return service;
 });
 
-/*
- 
- language service with selections
- 
-*/
+/**
+ * Admin Language Service
+ * 
+ * This service provides you information about all available languages of the admin, and whether a current language
+ * is selected and display. The selection is mainly used by forms in order to determine whether a language field should
+ * be displayed or not.
+ * 
+ * 
+ */
 zaa.factory("AdminLangService", ['ServiceLanguagesData', '$rootScope', function(ServiceLanguagesData, $rootScope) {
 	
 	var service = [];
@@ -417,41 +470,51 @@ zaa.factory("AdminDebugBar", function() {
 	return service;
 });
 
-/*
-
-$scope.filesData = ServiceFilesData.data;
-				
-$scope.$on('service:AdminToast', function(event, data) {
-	$scope.filesData = data;
-});
-
-Examples
-
-AdminToastService.notify('Hello i am Message and will be dismissed in 2 Seconds');
-
-AdminToastService.confirm('Hello i am a callback and wait for your', 'Das löschen?', ['$q', '$http', function($q, $http) {
-	// do some ajax call
-	$http.get().then(function() {
-		promise.resolve();
-	}).error(function() {
-		promise.reject();
-	});
-}]);
-
-you can also close this dialog by sourself in the callback
-
-AdminToastService.confirm('Are you sure?', 'Dialog Title', function() {
-	// do something
-	this.close();
-});
-
-instead of this you can also invoke $toast
-
-function($toast) {
-	$toast.close();
-}
-
-*/
+/**
+ * Notifcation Toasts
+ * 
+ * This services allows you to send toast message into the admin UI. This is commonly used for error and success messages.
+ * 
+ * + success: `AdminToastService.success('Hello success!');`
+ * + error: `AdminToastService.error('This is an error');`
+ * + info: `AdminToastService.info('Just an info message');`
+ * + warning: `AdminToastService.warning('Warning message here!');`
+ * 
+ * But you can also make confirm dialogs where the user have to say YES or NO. Not will just close the confirm prompt,
+ * but YES will run the defined callback:
+ * 
+ * Example with simple console log after yes has been close:
+ * 
+ * ```js
+ * AdminToastService.confirm('Are you sure?', 'Dialog Title', function() {
+ *	  console.log('The user has clicked yes!');
+ *    this.close();
+ * });
+ * ```
+ * 
+ * Instead of `this.close` you can also invoke the $toast service:
+ * 
+ * ```js
+ * AdminToastService.confirm('Are you sure?', 'Dialog Title', ['$toast', function($toast) {
+ *	  console.log('The user has clicked yes!');
+ *    console.log('Toast:', $toast);
+ *    $toast.close();
+ * });
+ * ```
+ * 
+ * You can also use promises:
+ * 
+ * ```js
+ * AdminToastService.confirm('Hello i am a callback and wait for your...', 'Dialog Title', ['$q', '$http', function($q, $http) {
+ * 	  // do some ajax call
+ * 	  $http.get('admin/api-go-here').then(function() {
+ * 		  promise.resolve();
+ * 	  }).error(function() {
+ * 		  promise.reject();
+ * 	  });
+ * }]);
+ * ```
+ */
 zaa.factory("AdminToastService", ['$q', '$timeout', '$injector', function($q, $timeout, $injector) {
 	var service = [];
 	
@@ -518,16 +581,25 @@ zaa.factory("AdminToastService", ['$q', '$timeout', '$injector', function($q, $t
 	return service;
 }]);
 
-/*
- * 
+/**
  * Saving data in Html Storage
  * 
- *	$scope.isHover = HtmlStorage.getValue('sidebarToggleState', false); 
- *		
- *	$scope.toggleMainNavSize = function() {
- *	    $scope.isHover = !$scope.isHover;
- *	    HtmlStorage.setValue('sidebarToggleState', $scope.isHover);
- *	}
+ * This service allows you to store and retrieve data from the html5 storage system:
+ * 
+ * Retrieve a value:
+ * 
+ * ```js
+ * HtmlStorage.getValue('sidebarToggleState', false); 
+ * ```
+ * 
+ * Where false is the default value if no the provided key could not find any data
+ * in the html storage system.
+ * 
+ * Set a given value with a key:
+ * 
+ * ```js
+ * HtmlStorage.setValue('sidebarToggleState', $scope.isHover);
+ * ```
  */
 zaa.factory('HtmlStorage', function() {
 	var service = {

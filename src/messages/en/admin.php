@@ -3,7 +3,7 @@
 return [
     'language_name' => 'English',
     'button_save' => 'Save',
-    'button_confirm' => 'Yes',
+    'button_yes' => 'Yes',
     'button_abort' => 'Cancel',
     'button_send' => 'Send',
     'login_pre_title' => 'Login for {title}',
@@ -238,7 +238,7 @@ return [
 
 // rc4
 
-    'api_storage_file_upload_folder_error' => 'Error while saveing the file in the storage folder. A permission error could cause this problem. Make sure the storage folder is writeable.',
+    'api_storage_file_upload_folder_error' => 'Error while saving the file in the storage folder. A permission error could cause this problem. Make sure the storage folder is writable.',
     'model_user_oldpassword' => 'Previous (old) Password',
     'js_account_update_profile_success' => 'The profile data has been successfull updated.',
     'dashboard_lastlogin_title' => 'Last User Logins',
@@ -300,7 +300,7 @@ return [
     'aw_changepassword_defaultlabel' => 'Change password',
     'model_user_api_last_activity' => 'Last API activity',
     'aw_apioverview_label' => 'API overview',
-    'aw_apioverview_resettokenconfirm' => 'Are you sure you want to replace the current token with a new one? This can not be undone.',
+    'aw_apioverview_resettokenconfirm' => 'Are you sure you want to replace the current token with a new one? This cannot be undone.',
     'aw_apioverview_resettokenconfirm_title' => 'Confirm token reset',
     'aw_apioverview_responsetesterresponse' => 'Response',
     'aw_apioverview_responsetesterrequest' => 'Request',
@@ -352,4 +352,16 @@ return [
     'view_index_redirect_telephone' => 'telephone number',
     'view_index_redirect_telephone_help' => 'Please enter a valid telephone number (for "+" sign a leading "\" is require).',
     'missing_file_upload_permission' => 'Insufficient permissions for file uploads.',
+    
+// 1.2.2
+    
+    'button_no' => 'No',
+    'crud_exportdata_btn' => 'Export Data',
+    'crud_exportdata_col_header' => 'Header',
+    'crud_exportdata_col_format' => 'Format',
+    'crud_exportdata_col_format_csv' => 'CSV',
+    'crud_exportdata_col_format_xlsx' => 'Excel (xlsx)',
+    'crud_exportdata_col_columns' => 'Columns',
+    'crud_exportdata_btn_generateexport' => 'Generate export',
+    'crud_exportdata_btn_downloadexport' => 'Download export',
 ];

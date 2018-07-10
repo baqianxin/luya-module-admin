@@ -25,6 +25,22 @@ $this->beginPage()
 <body ng-cloak flow-prevent-drop class="{{browser}}" ng-class="{'debugToolbarOpen': showDebugBar, 'modal-open' : !AdminClassService.modalStackIsEmpty()}">
 <?php $this->beginBody(); ?>
 <?= $this->render('_angulardirectives'); ?>
+<div class="loading-overlay" ng-if="LuyaLoading.getState()">
+    <div class="loading-overlay-content">
+        <h3 class="loading-overlay-title">
+            {{LuyaLoading.getStateMessage()}}
+        </h3>
+        <div class="loading-overlay-loader">
+            <div class="loading-indicator">
+                <div class="rect1"></div><!--
+                --><div class="rect2"></div><!--
+                --><div class="rect3"></div><!--
+                --><div class="rect4"></div><!--
+                --><div class="rect5"></div>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="luya">
     <div class="luya-mainnav" ng-class="{'luya-mainnav-small' : !isHover}">
         <div class="mainnav" ng-class="{'mainnav-small' : !isHover}">
@@ -195,9 +211,9 @@ $this->beginPage()
                             <span class="material-icons card-toggle-indicator">keyboard_arrow_down</span>
                             <i class="material-icons">{{item.menuItem.icon}}</i>&nbsp;<span>{{item.menuItem.alias}}</span><small class="ml-1"><i>({{item.data.length}})</i></small>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body p-2">
                             <div class="table-responsive-wrapper">
-                                <table class="table table-hover table-align-middle">
+                                <table class="table table-hover table-align-middle mb-0">
                                     <thead>
                                         <tr ng-repeat="row in item.data | limitTo:1">
                                             <th ng-hide="!item.hideFields.indexOf(k)" ng-repeat="(k,v) in row">{{k}}</th>
@@ -234,36 +250,33 @@ $this->beginPage()
             </li>
         </ul>
         <div class="debug-panel debug-panel-network" ng-class="{'debug-panel-network-open': debugDetail}" ng-if="debugTab==1">
-            <div class="debug-network-items">
-            	<button type="button" ng-click="AdminDebugBar.clear()" class="btn btn-icon"><i class="material-icons">clear</i></button>
+            <div class="debug-network-items pr-3">
+                <p class="lead">Requests ({{AdminDebugBar.data.length}})<button type="button" ng-click="AdminDebugBar.clear()" class="btn btn-icon mb-3 btn-sm float-right">Clear list <i class="material-icons">clear</i></button></p>
                 <div class="table-responsive-wrapper">
                     <table class="table table-striped table-sm table-hover table-bordered">
                         <thead>
                             <tr>
-                                <th>URL</th>
-                                <th>Status</th>
-                                <th>Time (ms)</th>
-                                <th>Detail</th>
+                                <th class="w-50">URL</th>
+                                <th class="w-25">Status</th>
+                                <th class="w-25">Time (ms)</th>
                             </tr>
                         </thead>
-                        <tr ng-repeat="(key, item) in AdminDebugBar.data | reverse">
+                        <tr ng-repeat="(key, item) in AdminDebugBar.data | reverse" ng-show="item.responseStatus" ng-click="loadDebugDetail(item, key)" style="cursor:pointer;">
                             <td>{{ item.url }}</td>
                             <td>{{ item.responseStatus }}</td>
                             <td>{{ item.parseTime }}</td>
-                            <td><button class="btn btn-sm btn-secondary btn-icon" type="button" ng-click="loadDebugDetail(item, key)"><i class="material-icons">search</i></button></td>
                         </tr>
                     </table>
                 </div>
             </div>
-            <div class="debug-network-detail">
+            <div class="debug-network-detail" ng-show="debugDetail">
+                
                 <div class="table-responsive-wrapper">
+                    <p class="lead">Request<button type="button" ng-click="closeDebugDetail()" class="btn btn-icon mb-3 btn-sm float-right">close <i class="material-icons">close</i></button></p>
                     <table class="table table-striped table-bordered">
                         <tr>
-                            <th scope="col" colspan="2">Request</th>
-                        </tr>
-                        <tr>
-                            <th scope="row">URL</th>
-                            <td>{{debugDetail.url}}</td>
+                            <th class="w-25" scope="row">URL</th>
+                            <td class="w-75">{{debugDetail.url}}</td>
                         </tr>
                         <tr>
                             <th scope="row">Time</th>
@@ -274,30 +287,22 @@ $this->beginPage()
                         </tr>
                         <tr>
                             <th scope="row">Data</th>
-                            <td>
-                                <code ng-if="debugDetail.requestData">{{debugDetail.requestData}}</code>
-                                <code ng-if="!debugDetail.requestData">-</code>
+                            <td><code ng-if="debugDetail.requestData">{{debugDetail.requestData | json}}</code><span ng-if="!debugDetail.requestData">-</span>
                             </td>
                         </tr>
+                    </table>
+                    <p class="lead mt-3">Response</p>
+                    <table class="table table-striped table-bordered">
                         <tr>
-                            <td colspan="2">&nbsp;</td>
-                        </tr>
-                        <tr>
-                            <th scope="col">Response</th>
-                        </tr>
-                        <tr>
-                            <th scope="row">Status</th>
-                            <td>
+                            <th class="w-25" scope="row">Status</th>
+                            <td class="w-75">
                                 <span ng-if="debugDetail.responseStatus">{{debugDetail.responseStatus}}</span>
                                 <span ng-if="!debugDetail.responseStatus">-</span>
                             </td>
                         </tr>
                         <tr>
                             <th scope="row">Data</th>
-                            <td>
-                                <code ng-if="debugDetail.responseData">{{debugDetail.responseData}}</code>
-                                <code ng-if="!debugDetail.responseData">-</code>
-                            </td>
+                            <td><code ng-if="debugDetail.responseData">{{debugDetail.responseData | json }}</code><span ng-if="!debugDetail.responseData">-</span></td>
                         </tr>
                     </table>
                 </div>
@@ -333,27 +338,23 @@ $this->beginPage()
         <div class="debug-panel" ng-if="debugTab==3">
             <div class="table-responsive-wrapper">
                 <div ng-repeat="(packageName, package) in packages" class="mb-3">
-                    <h3>{{ packageName }}</h3>
+                    <p class="lead">{{ packageName }}</p>
                     <table class="table table-striped table-sm table-bordered">
                         <tr>
-                            <td>Name</td>
-                            <td>{{ package.package.name}}</td>
+                            <td class="w-25">Name</td>
+                            <td class="w-75">{{ package.package.prettyName}}</td>
                         </tr>
                         <tr>
-                            <td>Pretty Name</td>
-                            <td>{{ package.package.prettyName}}</td>
-                        </tr>
-                        <tr>
-                            <td>Version</td>
+                            <td>Installed version</td>
                             <td>{{ package.package.version}}</td>
                         </tr>
                         <tr>
-                            <td>Bootstrap</td>
-                            <td>{{ package.bootstrap | json }}</td>
+                            <td>Bootstraping files</td>
+                            <td><small>{{ package.bootstrap | json }}</small></td>
                         </tr>
                         <tr>
-                            <td>Blocks</td>
-                            <td>{{ package.blocks | json }}</td>
+                            <td>Blocks resources</td>
+                            <td><small>{{ package.blocks | json }}</small></td>
                         </tr>
                     </table>
                 </div>
@@ -376,7 +377,7 @@ $this->beginPage()
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" ng-click="item.close()"><?= Admin::t('button_abort'); ?></button>
-                    <button type="button" class="btn btn-primary" ng-click="item.click()"><?= Admin::t('button_confirm'); ?></button>
+                    <button type="button" class="btn btn-primary" ng-click="item.click()"><?= Admin::t('button_yes'); ?></button>
                 </div>
             </div>
         </div>

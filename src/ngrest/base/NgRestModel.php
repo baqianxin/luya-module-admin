@@ -12,6 +12,7 @@ use luya\admin\base\GenericSearchInterface;
 use luya\admin\ngrest\Config;
 use luya\admin\ngrest\ConfigBuilder;
 use luya\admin\base\RestActiveController;
+use yii\db\conditions\OrCondition;
 
 /**
  * NgRest Model.
@@ -40,6 +41,18 @@ abstract class NgRestModel extends ActiveRecord implements GenericSearchInterfac
      */
     const EVENT_SERVICE_NGREST = 'serviceNgrest';
 
+    /**
+     * @var string The constant for the rest create scenario
+     * @since 1.2.2
+     */
+    const SCENARIO_RESTCREATE = 'restcreate';
+    
+    /**
+     * @var string The constant for the rest update scenario
+     * @since 1.2.2
+     */
+    const SCENARIO_RESTUPDATE = 'restupdate';
+    
     /**
      * @var array Defines all fields which should be casted as i18n fields. This will transform the defined fields into
      * json language content parings and the plugins will threat the fields different when saving/updating or request
@@ -86,7 +99,8 @@ abstract class NgRestModel extends ActiveRecord implements GenericSearchInterfac
      */
     public function extraFields()
     {
-        return array_merge(parent::extraFields(), array_keys($this->ngRestExtraAttributeTypes()));
+        $extraFieldKeys = array_keys($this->ngRestExtraAttributeTypes());
+        return array_merge(parent::extraFields(), $this->extractRootFields($extraFieldKeys));
     }
     
     /**
@@ -237,8 +251,7 @@ abstract class NgRestModel extends ActiveRecord implements GenericSearchInterfac
      * Search trough the whole table as ajax fallback when pagination is enabled.
      *
      * This method is used when the angular crud view switches to a pages view and a search term is entered into
-     * the query field. It differs to the generic search as it takes more performence to lookup all fields (except
-     * of boolean types).
+     * the query field. By default it will also take the fields from {{genericSearchFields()}}.
      *
      * When you have relations to lookup you can extend the parent implementation, for example:
      *
@@ -258,30 +271,14 @@ abstract class NgRestModel extends ActiveRecord implements GenericSearchInterfac
     {
         $find = $this->ngRestFind();
         
-        foreach ($this->getTableSchema()->columns as $column) {
-            if ($column->phpType !== "boolean") {
-                $find->orFilterWhere(['like', static::tableName() . '.' . $column->name, $query]);
-            }
+        $operand = [];
+        foreach ($this->genericSearchFields() as $column) {
+            $operand[] = ['like', $column, $query];
         }
         
+        $find->andWhere(new OrCondition($operand));
+        
         return $find;
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function afterFind()
-    {
-        if ($this->getNgRestCallType()) {
-            if ($this->getNgRestCallType() == 'list') {
-                $this->trigger(self::EVENT_AFTER_NGREST_FIND);
-            }
-            if ($this->getNgRestCallType() == 'update') {
-                $this->trigger(self::EVENT_AFTER_NGREST_UPDATE_FIND);
-            }
-        } else {
-            return parent::afterFind();
-        }
     }
 
     /**
@@ -291,8 +288,8 @@ abstract class NgRestModel extends ActiveRecord implements GenericSearchInterfac
     {
         $fields = [];
         foreach ($this->getTableSchema()->columns as $name => $object) {
-            if ($object->phpType == 'string') {
-                $fields[] = $object->name;
+            if ($object->phpType == 'string' || $object->phpType == 'integer') {
+                $fields[] = static::tableName() . '.' . $object->name;
             }
         }
 
@@ -325,23 +322,24 @@ abstract class NgRestModel extends ActiveRecord implements GenericSearchInterfac
      */
     public function genericSearch($searchQuery)
     {
-        $fields = $this->genericSearchFields();
-        
-        foreach ($this->getNgRestPrimaryKey() as $pk) {
-            // add pk to fields list automatically to make click able state providers
-            if (!in_array($pk, $fields)) {
-                $fields[] = $pk;
+        return $this->ngRestFullQuerySearch($searchQuery)->select($this->genericSearchFields());
+    }
+    
+    /**
+     * @inheritdoc
+     */
+    public function afterFind()
+    {
+        if ($this->getNgRestCallType()) {
+            if ($this->getNgRestCallType() == 'list') {
+                $this->trigger(self::EVENT_AFTER_NGREST_FIND);
             }
+            if ($this->getNgRestCallType() == 'update') {
+                $this->trigger(self::EVENT_AFTER_NGREST_UPDATE_FIND);
+            }
+        } else {
+            return parent::afterFind();
         }
-        
-        // create active query object
-        $query = self::find();
-        // foreach all fields from genericSearchFields metod
-        foreach ($fields as $field) {
-            $query->orWhere(['like', $field, $searchQuery]);
-        }
-        // return array based on orWhere statement
-        return $query->select($fields)->all();
     }
 
     private $_ngrestCallType;

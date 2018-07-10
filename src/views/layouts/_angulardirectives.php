@@ -68,7 +68,7 @@ use luya\admin\helpers\Angular;
             <label for="to_mail" ng-click="data.type = 4"><?= Admin::t('view_index_redirect_mail'); ?></label>
 
             <input type="radio" ng-model="data.type" ng-value="5" id="to_telepone">
-            <label for="to_telephone" ng-click="data.type = 5"><?= Admin::t('view_index_redirect_phone'); ?></label>
+            <label for="to_telephone" ng-click="data.type = 5"><?= Admin::t('view_index_redirect_telephone'); ?></label>
         </div>
     </div>
     <div class="form-group form-side-by-side">
@@ -97,7 +97,7 @@ use luya\admin\helpers\Angular;
 			    </div>
                 <div ng-switch-when="5">
                     <input class="form-control" type="tel" ng-model="data.value" placeholder="(\+00)9999-9999" />
-                    <p class="mt-1"><small><?= Admin::t('view_index_redirect_phone_help'); ?></small></p>
+                    <p class="mt-1"><small><?= Admin::t('view_index_redirect_telephone_help'); ?></small></p>
                 </div>
             </div>
         </div>
@@ -127,10 +127,10 @@ use luya\admin\helpers\Angular;
         <?php if (Yii::$app->adminuser->canRoute('admin/storage/index')): ?>
         <div class="link-selector-actions">
             <div class="link-selector-btn btn btn-secondary" ng-click="toggleModal()">
-                <i class="material-icons left" ng-show="!fileinfo.name">file_upload</i>
-                <i class="material-icons left" ng-show="fileinfo.name">attach_file</i>
-                <span ng-if="fileinfo.name">{{fileinfo.name | truncateMiddle: 30}}</span>
-                <span ng-if="!fileinfo.name">
+                <i class="material-icons left" ng-show="!fileinfo.name_original">file_upload</i>
+                <i class="material-icons left" ng-show="fileinfo.name_original">attach_file</i>
+                <span ng-if="fileinfo.name_original">{{fileinfo.name_original | truncateMiddle: 30}}</span>
+                <span ng-if="!fileinfo.name_original">
                     <?= Admin::t('layout_select_file'); ?>
                 </span>
             </div>
@@ -159,16 +159,18 @@ use luya\admin\helpers\Angular;
             <div class="imageupload-preview-sizer"></div>
             <img ng-src="{{thumb.source}}" ng-show="imageinfo != null" class="imageupload-preview-image" />
             <div class="imageupload-infos">
-                <div class="imageupload-size" ng-show="!imageLoading">{{ imageinfo.resolutionWidth }} x {{ imageinfo.resolutionHeight }}</div>
+                <div class="imageupload-size" ng-show="!imageLoading">{{ imageinfo.resolution_width }} x {{ imageinfo.resolution_height }}</div>
             </div>
         </div>
-        
         <div class="imageupload-upload">
             <storage-file-upload ng-model="fileId"></storage-file-upload>
         </div>
         <?php if (Yii::$app->adminuser->canRoute('admin/storage/index')): ?>
         <div class="imageupload-filter" ng-show="!noFilters() && imageinfo != null">
-            <select name="filterId" ng-model="filterId" convert-to-number><option value="0"><?= Admin::t('layout_no_filter'); ?></option><option ng-repeat="item in filtersData" value="{{ item.id }}">{{ item.name }} ({{ item.identifier }})</option></select>
+            <select name="filterId" ng-model="filterId" ng-change="changeFilter()" convert-to-number>
+                <option value="0"><?= Admin::t('layout_no_filter'); ?></option>
+                <option ng-repeat="item in filtersData" value="{{ item.id }}">{{ item.name }} ({{ item.identifier }})</option>
+            </select>
         </div>
         <?php endif; ?>
     </div>
@@ -264,7 +266,7 @@ use luya\admin\helpers\Angular;
                         <?= Admin::t('layout_filemanager_upload_files'); ?>
                     </div>
 
-                    <input class="filemanager-search" type="text"  ng-model="searchQuery" placeholder="<?= Admin::t('layout_filemanager_search_text') ?>" />
+                    <input class="filemanager-search" type="text" ng-change="runSearch()" ng-model="searchQuery" placeholder="<?= Admin::t('layout_filemanager_search_text') ?>" />
 
                 </div>
 
@@ -286,7 +288,7 @@ use luya\admin\helpers\Angular;
                     <thead class="thead-default">
                         <tr>
                             <th>
-                                <span ng-hide="allowSelection == 'true'" class="filemanager-check-all" ng-click="toggleSelectionAll()" tooltip tooltip-position="right" tooltip-text="{{ (filesData | filemanagerfilesfilter:currentFolderId:onlyImages:searchQuery | filter:searchQuery).length }} files">
+                                <span ng-hide="allowSelection == 'true'" class="filemanager-check-all" ng-click="toggleSelectionAll()" tooltip tooltip-position="right">
                                     <i class="material-icons">done_all</i>
                                 </span>
                             </th>
@@ -348,7 +350,7 @@ use luya\admin\helpers\Angular;
                     </thead>
                     <tbody>
                         <tr
-                            ng-repeat="file in filesData | filemanagerfilesfilter:currentFolderId:onlyImages:searchQuery | filter:searchQuery | orderBy:sortField" class="filemanager-file"
+                            ng-repeat="file in filesData" class="filemanager-file"
                             ng-class="{ 'clickable selectable' : allowSelection == 'false', 'filemanager-file-selected': selectedFileFromParent && selectedFileFromParent.id == file.id, 'filemanager-file-detail-open': fileDetail.id === file.id}"
                         >
                             <th scope="row" ng-click="toggleSelection(file)">
@@ -413,6 +415,13 @@ use luya\admin\helpers\Angular;
             <tr>
                 <td><small><?= Admin::t('model_pk_id'); ?></small></td>
                 <td>{{ fileDetail.id }}</td>
+            </tr>
+            <tr>
+                <td><small>Folder</small></td>
+                <td>
+                    <a ng-show="fileDetailFolder" ng-click="changeCurrentFolderId(fileDetailFolder.id)">{{ fileDetailFolder.name }}</a>
+                    <a ng-show="!fileDetailFolder" ng-click="changeCurrentFolderId(0)"><?= Admin::t('layout_filemanager_root_dir'); ?></a>
+                </td>
             </tr>
             <tr>
                 <td><small><?= Admin::t('layout_filemanager_col_date'); ?></small></td>

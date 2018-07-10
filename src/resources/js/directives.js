@@ -865,7 +865,7 @@
     	}
     });
 
-    zaa.directive("zaaLink", function(){
+    zaa.directive("zaaLink", ['$filter', function($filter){
         return {
             restrict: "E",
             scope: {
@@ -896,22 +896,30 @@
             		if (n) {
             			$scope.model = n;
             		}
-            	}, true);
+                }, true);
+                
+                $scope.isEmpty = function(value) {
+                    if (value) {
+                        return $filter('isEmpty')(value);
+                    }
+                    
+                    return true;
+                };
             }],
             template: function() {
                 return '<div class="form-group form-side-by-side" ng-class="{\'input--hide-label\': i18n}"><div class="form-side form-side-label"><labelfor="{{id}}">{{label}}</label></div><div class="form-side">' +
-                    '<div ng-if="model">' +
+                    '<div ng-if="!isEmpty(data.model)">' +
                         '<div class="link-selector">' +
                             '<div class="link-selector-actions">' +
                                 '<div class="link-selector-btn btn btn-secondary" ng-click="data.modalState=0">' +
                                     '<i class="material-icons left">insert_link</i>' +
-                                    '<span>' + i18n['js_link_set_value'] + '</span>' +
+                                    '<span>' + i18n['js_link_change_value'] + '</span>' +
                                 '</div>' +
                                 '<span ng-hide="model | isEmpty" class="link-selector-reset" ng-click="unset()"><i class="material-icons">remove_circle</i></span>' +
                             '</div><link-object-to-string class="ml-2" link="model"></link-object-to-string>' +
                         '</div>' +
                     '</div>' +
-                    '<div ng-if="!model">' +
+                    '<div ng-if="isEmpty(data.model)">' +
                         '<div class="link-selector">' +
                             '<div class="link-selector-actions">' +
                                 '<div class="link-selector__btn btn btn-secondary" ng-click="data.modalState=0">' +
@@ -929,7 +937,7 @@
                 '</div></div>';
             }
         }
-    });
+    }]);
 
     /**
      * Generates slug from a given model input.
@@ -1169,6 +1177,36 @@
                 "id": "@fieldid"
             },
             controller: ['$scope', '$timeout', '$http', function($scope, $timeout, $http) {
+
+            	$scope.resetValue = function() {
+            		$scope.model = 0;
+            		$scope.value = null;
+            	};
+            }],
+            template: function() {
+                return '<div class="form-group form-side-by-side" ng-class="{\'input--hide-label\': i18n}"><div class="form-side form-side-label"><label for="{{id}}">{{label}}</label></div><div class="form-side"><async-value model="model" api="{{api}}" fields="fields"  ng-show="model" /><button type="button" class="btn btn-icon btn-cancel" ng-click="resetValue()" ng-show="model"></button></div></div>';
+            }
+        }
+    });
+
+    /**
+     * Can be used to just fetch a value from an api async.
+     * 
+     * ```
+     * <async-value model="theModel" api="admin/admin-users" fields="[foo,bar]" />
+     * ```
+     * 
+     * @since 1.2.2
+     */
+    zaa.directive("asyncValue", function() {
+        return {
+            restrict: "E",
+            scope: {
+                "model": "=",
+                "api" : "@",
+                "fields" : "="
+            },
+            controller: ['$scope', '$timeout', '$http', function($scope, $timeout, $http) {
             	$timeout(function() {
             		$scope.$watch('model', function(n, o) {
             			if (n) {
@@ -1184,14 +1222,9 @@
             			}
             		});
             	});
-
-            	$scope.resetValue = function() {
-            		$scope.model = 0;
-            		$scope.value = null;
-            	};
             }],
             template: function() {
-                return '<div class="form-group form-side-by-side" ng-class="{\'input--hide-label\': i18n}"><div class="form-side form-side-label"><label for="{{id}}">{{label}}</label></div><div class="form-side"><span ng-bind="value"></span><button type="button" class="btn btn-icon btn-cancel" ng-click="resetValue()" ng-show="model"></button></div></div>';
+                return '<span ng-bind="value"></span>';
             }
         }
     });
@@ -1418,8 +1451,8 @@
                                             '<input class="zaaselect-search-input" type="search" focus-me="isOpen" ng-model="searchQuery" />' +
                                         '</div>' +
                                         '<div class="zaaselect-overflow">' +
-                                            '<div class="zaaselect-item" ng-repeat="opt in options | filter:searchQuery" ng-click="setModelValue(opt)">' +
-                                                '<span ng-class="{\'zaaselect-active\': opt[optionsvalue] == model}">{{opt[optionslabel]}}</span>' +
+                                            '<div class="zaaselect-item" ng-repeat="opt in options | filter:searchQuery">' +
+                                                '<span class="zaaselect-label" ng-class="{\'zaaselect-label-active\': opt[optionsvalue] == model}" ng-click="opt[optionsvalue] == model ? false : setModelValue(opt)">{{opt[optionslabel]}}</span>' +
                                             '</div>' +
                                         '</div>' +
                                     '</div>' +
@@ -1482,6 +1515,8 @@
      * options arg object:
      *
      * options.items[] = [{"value" : 1, "label" => 'Label for Value 1' }]
+     * 
+     * @param preselect boolean if enable all models will be selected by default.
      */
     zaa.directive("zaaCheckboxArray", function(){
         return {
@@ -1491,7 +1526,8 @@
                 "options": "=",
                 "i18n": "@i18n",
                 "id": "@fieldid",
-                "label": "@label"
+                "label": "@label",
+                "preselect" : "@preselect"
             },
             controller: ['$scope', '$filter', function($scope, $filter) {
 
@@ -1499,11 +1535,20 @@
                     $scope.model = [];
                 }
 
+                $scope.preselectOptionValuesToModel = function(options) {
+                	angular.forEach(options, function(value) {
+                		$scope.model.push({'value': value.value});
+                	});
+                };
+                
                 $scope.searchString = '';
 
                 $scope.$watch('options', function(n, o) {
                 	if (n != undefined && n.hasOwnProperty('items')) {
                     	$scope.optionitems = $filter('orderBy')(n.items, 'label');
+                    	if ($scope.preselect) {
+                    		$scope.preselectOptionValuesToModel(n.items);
+                    	}
                     }
                 });
 
@@ -1548,7 +1593,7 @@
                                     '<div class="input-group-addon">' +
                                         '<i class="material-icons">search</i>' +
                                     '</div>' +
-                                    '<input class="form-control" type="text" ng-change="filtering()" ng-model="searchString" placeholder="Enter search term...">' +
+                                    '<input class="form-control" type="text" ng-change="filtering()" ng-model="searchString" placeholder="'+i18n['ngrest_crud_search_text']+'">' +
 
                                     '<span class="zaa-checkbox-array-counter badge badge-secondary">{{optionitems.length}} ' + i18n['js_dir_till'] + ' {{options.items.length}}</span>' +
                                 '</div>' +
@@ -2363,6 +2408,98 @@
     });
     // storage.js
 
+    
+
+    zaa.directive('storageFileDisplay', function() {
+    	return {
+    		restrict: 'E',
+    		scope: {
+    			fileId: '@fileId'
+    		},
+    		controller: ['$scope', '$filter', 'ServiceFilesData', function($scope, $filter, ServiceFilesData) {
+
+    			// ServiceFilesData inheritance
+
+    			/*
+                $scope.filesData = ServiceFilesData.data;
+
+                $scope.$on('service:FilesData', function(event, data) {
+                    $scope.filesData = data;
+                });
+                */
+
+                // controller
+
+    			$scope.fileId = 0;
+    			
+                $scope.fileinfo = null;
+
+                $scope.$watch('fileId', function(n, o) {
+                	if (n == 0 || n == null || n == undefined || n == o) {
+                		return;
+                	}
+                	
+                	$scope.ServiceFilesData.getFile(n).then(function(file) {
+                		$scope.fileinfo = file;
+                	}, function() {
+                        $scope.fileinfo = null;
+                    });
+                });
+    		}],
+    		template: function() {
+                return '<div ng-show="fileinfo!==null">{{ fileinfo.name }}</div>';
+            }
+    	}
+    });
+
+    zaa.directive('storageImageThumbnailDisplay', function() {
+        return {
+            restrict: 'E',
+            scope: {
+                imageId: '@imageId'
+            },
+            controller: ['$scope', '$filter', 'ServiceImagesData', 'ServiceFilesData', function($scope, $filter, ServiceImagesData, ServiceFilesData) {
+
+                // ServiceFilesData inheritance
+
+                /*
+                $scope.filesData = ServiceFilesData.data;
+
+                $scope.$on('service:FilesData', function(event, data) {
+                    $scope.filesData = data;
+                });
+                */
+
+                // ServiceImagesData inheritance
+
+                /*
+                $scope.imagesData = ServiceImagesData.data;
+
+                $scope.$on('service:ImagesData', function(event, data) {
+                    $scope.imagesData = data;
+                });
+                */
+
+                // controller logic
+
+                $scope.$watch(function() { return $scope.imageId }, function(n, o) {
+                    if (n != undefined || n != null) {
+                        ServiceImagesData.getImage(n).then(function(response) {
+                            $scope.imageSrc = response.thumbnail.source;
+                        }, function() {
+                            $scope.imageSrc = null;  
+                        });
+                    }
+                });
+
+                $scope.imageSrc = null;
+            }],
+            template: function() {
+                return '<div ng-show="imageSrc"><img ng-src="{{imageSrc}}" alt="{{imageSrc}}" class="img-fluid" /></div>';
+            }
+        }
+    });
+
     zaa.directive('storageFileUpload', function() {
         return {
             restrict : 'E',
@@ -2373,14 +2510,18 @@
 
                 // ServiceFilesData inhertiance
 
+            	/*
             	$scope.filesData = ServiceFilesData.data;
 
             	$scope.$on('service:FilesData', function(event, data) {
             		$scope.filesData = data;
                 });
+                */
 
                 // controller logic
 
+            	//$scope.ngModel = 0;
+            	
             	$scope.modal = {state: 1};
 
             	$scope.modalContainer = false;
@@ -2403,105 +2544,32 @@
                 };
 
             	$scope.$watch(function() { return $scope.ngModel }, function(n, o) {
-                    if (n != 0 && n != null && n !== undefined) {
-                        var filtering = $filter('filter')($scope.filesData, {id: parseInt(n)}, true);
-                        if (filtering && filtering.length == 1) {
-                        	$scope.fileinfo = filtering[0];
-                        }
-                    }
-
-                    /* reset file directive if an event resets the image model to undefined */
-                    if (n == 0) {
-                    	$scope.reset();
-                    }
+            		if (n == null || n == undefined) {
+            			return null;
+            		}
+                    
+            		ServiceFilesData.getFile(n).then(function(response) {
+                    	$scope.fileinfo = response;
+                    }, function() {
+                        $scope.fileinfo = null;
+                    });
                 });
             }],
             templateUrl : 'storageFileUpload'
         }
     });
 
-    zaa.directive('storageFileDisplay', function() {
-    	return {
-    		restrict: 'E',
-    		scope: {
-    			fileId: '@fileId'
-    		},
-    		controller: ['$scope', '$filter', 'ServiceFilesData', function($scope, $filter, ServiceFilesData) {
-
-    			// ServiceFilesData inheritance
-
-                $scope.filesData = ServiceFilesData.data;
-
-                $scope.$on('service:FilesData', function(event, data) {
-                    $scope.filesData = data;
-                });
-
-                // controller
-
-                $scope.fileinfo = null;
-
-                $scope.$watch('fileId', function(n, o) {
-                    if (n != 0 && n != null && n !== undefined) {
-                    	var filtering = $filter('filter')($scope.filesData, {id: parseInt(n)}, true);
-                        if (filtering && filtering.length == 1) {
-                        	$scope.fileinfo = filtering[0];
-                        }
-                    }
-                });
-    		}],
-    		template: function() {
-                return '<div ng-show="fileinfo!==null">{{ fileinfo.name }}</div>';
-            }
-    	}
-    });
-
-    zaa.directive('storageImageThumbnailDisplay', function() {
-        return {
-            restrict: 'E',
-            scope: {
-                imageId: '@imageId'
-            },
-            controller: ['$scope', '$filter', 'ServiceImagesData', 'ServiceFilesData', function($scope, $filter, ServiceImagesData, ServiceFilesData) {
-
-                // ServiceFilesData inheritance
-
-                $scope.filesData = ServiceFilesData.data;
-
-                $scope.$on('service:FilesData', function(event, data) {
-                    $scope.filesData = data;
-                });
-
-                // ServiceImagesData inheritance
-
-                $scope.imagesData = ServiceImagesData.data;
-
-                $scope.$on('service:ImagesData', function(event, data) {
-                    $scope.imagesData = data;
-                });
-
-                // controller logic
-
-                $scope.$watch(function() { return $scope.imageId }, function(n, o) {
-                    if (n != 0 && n !== undefined) {
-
-                        var filtering = $filter('findidfilter')($scope.imagesData, n, true);
-
-                        var file = $filter('findidfilter')($scope.filesData, filtering.fileId, true);
-
-                        if (file && file.thumbnail) {
-                        	$scope.imageSrc = file.thumbnail.source;
-                        }
-                    }
-                });
-
-                $scope.imageSrc = null;
-            }],
-            template: function() {
-                return '<div ng-show="imageSrc!==false"><img ng-src="{{imageSrc}}" /></div>';
-            }
-        }
-    });
-
+    /**
+     * Sotrage Image Upload directive.
+     * 
+     * Call cycle when file directive implements the image directive:
+     * 
+     * + reset() in file directive
+     * + reset set $scope.fileId = 0
+     * + fileId watcher applys filter
+     * + filter can not find a file for id 0
+     * + ngModel set to 0
+     */
     zaa.directive('storageImageUpload', function() {
         return {
             restrict : 'E',
@@ -2509,10 +2577,11 @@
                 ngModel : '=',
                 options : '=',
             },
-            controller : ['$scope', '$http', '$filter', 'ServiceFiltersData', 'ServiceImagesData', 'AdminToastService', function($scope, $http, $filter, ServiceFiltersData, ServiceImagesData, AdminToastService) {
+            controller : ['$scope', '$http', '$filter', 'ServiceFiltersData', 'ServiceImagesData', 'AdminToastService', 'ServiceFilesData', function($scope, $http, $filter, ServiceFiltersData, ServiceImagesData, AdminToastService, ServiceFilesData) {
 
                 // ServiceImagesData inheritance
 
+        		/*
                 $scope.imagesData = ServiceImagesData.data;
 
                 $scope.$on('service:ImagesData', function(event, data) {
@@ -2522,8 +2591,11 @@
                 $scope.imagesDataReload = function() {
                     return ServiceImagesData.load(true);
                 }
+                */
 
                 // ServiceFiltesrData inheritance
+            	
+            	//$scope.ngModel = 0;
 
                 $scope.filtersData = ServiceFiltersData.data;
 
@@ -2550,8 +2622,34 @@
                 $scope.imageinfo = null;
 
                 $scope.imageNotFoundError = false;
-
+                
+                $scope.thumb = false;
+                
                 $scope.filterApply = function() {
+                	$scope.imageLoading = true;
+                    ServiceFilesData.getFile($scope.fileId).then(function(response) {
+                        var images = $filter('filter')(response.images, {filter_id: $scope.filterId});
+                        // unable to find the image for the given filter, create the image for the filter
+                        if (images.length == 0) {
+                            $http.post('admin/api-admin-storage/image-filter', { fileId : $scope.fileId, filterId : $scope.filterId}).then(function(uploadResponse) {
+                                $scope.ngModel = uploadResponse.data.id;
+                                AdminToastService.success(i18n['js_dir_image_upload_ok']);
+                                $scope.imageLoading = false;
+                            }, function(error) {
+                                AdminToastService.error(i18n['js_dir_image_filter_error']);
+                                $scope.imageLoading = false;
+                            });
+                        } else {
+                        	$scope.ngModel = images[0].id;
+                        	$scope.imageLoading = false;
+                        }
+                    }, function() {
+                        $scope.imageinfo = null;
+                        $scope.thumb = false;
+                        $scope.ngModel = 0;
+                    });
+                    
+                	/*
                     var items = $filter('filter')($scope.imagesData, {fileId: $scope.fileId, filterId: $scope.filterId}, true);
                     if (items && items.length == 0) {
                         $scope.imageLoading = true;
@@ -2575,49 +2673,94 @@
                         $scope.ngModel = item.id
                         $scope.imageinfo = item;
                     }
+                    */
                 };
 
+                /*
                 $scope.$watch(function() { return $scope.filterId }, function(n, o) {
-                    if (n != null && n !== undefined && $scope.fileId !== 0 && n !== o && n != o) {
-                        $scope.filterApply();
-                    }
+                	if (n == null || n == undefined || $scope.fileId == 0 || n == 0) {
+                		return;
+                	}
+                	
+                	$scope.filterApply();
                 });
+                */
+                
+                $scope.changeFilter = function() {
+                	$scope.filterApply();
+                };
 
                 $scope.$watch(function() { return $scope.fileId }, function(n, o) {
+                	
+                	if (n != null && n != undefined) {
+                		$scope.filterApply();
+                	}
+                	
+                	
+                	/*
+                	console.log('==> image fileId watch', n, o);
                 	if (n !== undefined && n != null && n != o) {
                 		if (n == 0) {
                             $scope.filterId = 0;
                             $scope.imageinfo = null;
                             $scope.ngModel = 0;
                         } else {
+                        	console.log('[!!!!!!!!!!!!!!]from fileid watcher', n);
                         	$scope.filterApply();
                         }
                     }
+                    */
                 });
 
                 $scope.$watch(function() { return $scope.ngModel }, function(n, o) {
+                	if (n != null && n != undefined && n != 0) {
+                		ServiceImagesData.getImage(n).then(function(response) {
+                            $scope.applyImageDetails(response);
+                            $scope.fileId = response.file_id;
+                            $scope.filterId = response.filter_id;
+                        }, function() {
+                            $scope.fileId = 0;
+                            $scope.filterId = 0;
+                            $scope.imageinfo = null;
+                            $scope.thumb = false;
+                        });
+                	}
+                	
+                	
+                	
+                	/*
                     if (n != 0 && n != null && n !== undefined) {
-                        var filtering = $filter('findidfilter')($scope.imagesData, n, true);
-                        if (filtering) {
-                            $scope.imageinfo = filtering;
-                            $scope.filterId = filtering.filterId;
-                            $scope.fileId = filtering.fileId;
-                        } else {
-                        	$scope.imageNotFoundError = true;
-                        }
+                        //var filtering = $filter('findidfilter')($scope.imagesData, n, true);
+                        ServiceImagesData.getImage(n).then(function(response) {
+                        	$scope.imageinfo = response;
+                        	$scope.fileId = response.file_id;
+                        	$scope.filterId = response.filter_id;
+                        });
                     }
-                    /* reset image preview directive if an event resets the image model to undefined */
                     if (n == undefined || n == 0) {
                     	$scope.fileId = 0;
                         $scope.filterId = 0;
                         $scope.imageinfo = null;
                         $scope.thumb = false;
                     }
-
+					*/
                 });
+                
+                $scope.applyImageDetails = function(imageInfo) {
+                	$scope.imageinfo = imageInfo;
+                	$scope.thumb = imageInfo;
+                	/*
+                	if (imageInfo.filterId == 0) {
+                		// the original image is usual to bug, therefor we use a  thumbnail size instaed
+                		var thumbnail = $filter('findthumbnail')($scope.imagesData, n.fileId, $scope.getThumbnailFilter().id);
+                	} else {
+                		$scope.thumb = imageInfo;
+                	}
+                	*/
+                };
 
-                $scope.thumb = false;
-
+                
+                /*
                 $scope.getThumbnailFilter = function() {
                 	if ($scope.thumbnailfilter === null) {
                 		if ('medium-thumbnail' in $scope.filtersData) {
@@ -2625,9 +2768,15 @@
                 		}
                 	}
                 	return $scope.thumbnailfilter;
-                }
+                };
+                */
 
+               
+                
+                /*
                 $scope.$watch('imageinfo', function(n, o) {
+                	
+                	
                 	if (n != 0 && n != null && n !== undefined) {
                 		if (n.filterId != 0) {
                 			$scope.thumb = n;
@@ -2641,6 +2790,8 @@
                 		}
                 	}
                 })
+                
+                	*/
             }],
             templateUrl : 'storageImageUpload'
         }
@@ -2658,8 +2809,8 @@
                 onlyImages : '@onlyImages'
             },
             controller : [
-            	'$scope', '$http', '$filter', '$timeout', 'Upload', 'ServiceFoldersData', 'ServiceFilesData', 'LuyaLoading', 'AdminToastService', 'ServiceFoldersDirecotryId', 
-            	function($scope, $http, $filter, $timeout, Upload, ServiceFoldersData, ServiceFilesData, LuyaLoading, AdminToastService, ServiceFoldersDirecotryId) {
+            	'$scope', '$http', '$filter', '$timeout', '$q', 'Upload', 'ServiceFoldersData', 'ServiceFilesData', 'LuyaLoading', 'AdminToastService', 'ServiceFoldersDirecotryId', 
+            	function($scope, $http, $filter, $timeout, $q, Upload, ServiceFoldersData, ServiceFilesData, LuyaLoading, AdminToastService, ServiceFoldersDirecotryId) {
 
                 // ServiceFoldersData inheritance
 
@@ -2671,20 +2822,55 @@
 
                 $scope.foldersDataReload = function() {
                     return ServiceFoldersData.load(true);
-                }
+                };
 
                 // ServiceFilesData inheritance
 
-                $scope.filesData = ServiceFilesData.data;
+                $scope.filesData = [];
 
-                $scope.$on('service:FilesData', function(event, data) {
-                    $scope.filesData = data;
+                $scope.paginations = [];
+                
+                $scope.currentPageId = 0;
+                
+                // load files data for a given folder id
+                $scope.$watch('currentFolderId', function(folderId) {
+                	if (folderId !== undefined) {
+                		$scope.getFilesForPageAndFolder(folderId, 0);
+                	}
                 });
 
-                $scope.filesDataReload = function() {
-                    return ServiceFilesData.load(true);
-                }
+                $scope.getFilesForPageAndFolder = function(folderId, pageId) {
+                	return $q(function(resolve, reject) {
+	                	$http.get('admin/api-admin-storage/data-files?folderId='+folderId+'&page='+pageId).then(function(response) {
+                            $scope.filesResponseToVars(response);
+	                        return resolve(true);
+	                	});
+                	});
+                };
 
+                $scope.filesResponseToVars = function(response) {
+                    $scope.filesData = response.data.data;
+	                $scope.filesMetaToPagination(response.data.__meta);
+                };
+
+                $scope.filesMetaToPagination = function(meta) {
+                    var pages = [];
+                    for (i = 0; i < meta.totalPages; i++) {
+                        var isActive = meta.currentPage == i;
+                        pages.push({isActive: isActive, label: i+1, index: i});
+                    }
+                    $scope.paginations = pages;
+                };
+
+                $scope.getFilesForPage = function(pageId) {
+                	$scope.currentPageId = pageId;
+                    return $scope.getFilesForPageAndFolder($scope.currentFolderId, pageId);
+                };
+                
+                $scope.getFilesForCurrentPage = function() {
+                	return $scope.getFilesForPageAndFolder($scope.currentFolderId, $scope.currentPageId);
+                }
+                
                 // ServiceFolderId
 
                 $scope.currentFolderId = ServiceFoldersDirecotryId.folderId;
@@ -2707,20 +2893,21 @@
 
                 $scope.replaceFile = function(file, errorFiles) {
                 	$scope.replaceFiled = file;
-
                 	if (!file) {
                 		return;
                 	}
-
                 	LuyaLoading.start();
 
                 	Upload.upload({
                 		url: 'admin/api-admin-storage/file-replace',
-                        data: {file: file, fileId: $scope.fileDetail.id}
+                        data: {file: file, fileId: $scope.fileDetail.id, pageId: $scope.currentPageId}
                     }).then(function (response) {
                     	LuyaLoading.stop();
                     	if (response.status == 200) {
-                            $scope.filesDataReload().then(function() {
+                            $scope.getFilesForCurrentPage().then(function() {
+                            	
+                            	//$scope.openFileDetail($scope.fileDetail, true);
+                            	
                             	var fileref = $filter('findidfilter')($scope.filesData, $scope.fileDetail.id, true);
                             	var random = (new Date()).toString();
                             	if (fileref.isImage) {
@@ -2728,6 +2915,8 @@
 	                            	fileref.thumbnailMedium.source = fileref.thumbnailMedium.source + "?cb=" + random;
 	                            }
                             	$scope.fileDetail = fileref;
+                            	
+                            	// @TODO TRANSLATION
                             	AdminToastService.success('the file has been replaced successfull.');
                             });
                     	}
@@ -2754,19 +2943,17 @@
                 $scope.$watch('uploadResults', function(n, o) {
                     if ($scope.uploadingfiles != null) {
                         if (n == $scope.uploadingfiles.length && $scope.errorMsg == null) {
-                            $scope.filesDataReload().then(function() {
-                            	AdminToastService.success(i18n['js_dir_manager_upload_image_ok']);
+                        	$scope.getFilesForCurrentPage().then(function() {
+                        		AdminToastService.success(i18n['js_dir_manager_upload_image_ok']);
                                 LuyaLoading.stop();
-                            });
+                        	});
                         }
                     }
-                })
+                });
 
                 $scope.pasteUpload = function(e) {
-
                     for (var i = 0 ; i < e.originalEvent.clipboardData.items.length ; i++) {
                         var item = e.originalEvent.clipboardData.items[i];
-
                         if (item.kind == 'file') {
                         	LuyaLoading.start(i18n['js_dir_upload_wait']);
 	                        Upload.upload({
@@ -2775,7 +2962,7 @@
 	                            file: item.getAsFile()
 	                        }).then(function(response) {
                         		if (response.data.upload) {
-		                        	$scope.filesDataReload().then(function() {
+		                        	$scope.getFilesForCurrentPage().then(function() {
 		                            	AdminToastService.success(i18n['js_dir_manager_upload_image_ok']);
 		                            	LuyaLoading.stop();
 		                            });
@@ -2783,11 +2970,10 @@
                         			AdminToastService.error(response.data.message);
                         			LuyaLoading.stop();
                         		}
-
-	                        })
+	                        });
                         }
                     }
-                }
+                };
 
                 $scope.uploadUsingUpload = function(file) {
                 	file.upload = Upload.upload({
@@ -2864,9 +3050,7 @@
                 	if (!newFolderName) {
                 		return;
                 	}
-                    $http.post('admin/api-admin-storage/folder-create', $.param({ folderName : newFolderName , parentFolderId : $scope.currentFolderId }), {
-                        headers : {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-                    }).then(function() {
+                    $http.post('admin/api-admin-storage/folder-create', { folderName : newFolderName , parentFolderId : $scope.currentFolderId }).then(function() {
                         $scope.foldersDataReload().then(function() {
                             $scope.folderFormToggler();
                             $scope.newFolderName = null;
@@ -2880,7 +3064,17 @@
 
                 // controller logic
 
-                $scope.searchQuery = '';
+                $scope.searchQuery = null;
+
+                $scope.runSearch = function() {
+                    if ($scope.searchQuery.length > 0) {
+                        $http.get('admin/api-admin-storage/search?query=' + $scope.searchQuery).then(function(response) {
+                            $scope.filesResponseToVars(response);
+                        });
+                    } else {
+                        $scope.getFilesForCurrentPage();
+                    }
+                };
 
                 $scope.sortField = 'name';
 
@@ -2889,8 +3083,10 @@
                 };
 
                 $scope.changeCurrentFolderId = function(folderId, noState) {
+                	var oldCurrentFolder = $scope.currentFolderId;
                     $scope.currentFolderId = folderId;
-                    if (noState !== true) {
+                    $scope.currentPageId = 0;
+                    if (noState !== true && oldCurrentFolder != folderId) {
                     	ServiceFoldersDirecotryId.folderId = folderId;
                     	$http.post('admin/api-admin-common/save-filemanager-folder-state', {folderId : folderId}, {ignoreLoadingBar: true});
                     }
@@ -2912,39 +3108,25 @@
                 $scope.folderDeleteConfirmForm = false;
                 
                 $scope.updateFolder = function(folder) {
-                    $http.post('admin/api-admin-storage/folder-update?folderId=' + folder.id, $.param({ name : folder.name }), {
-                        headers : {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-                    });
+                    $http.post('admin/api-admin-storage/folder-update?folderId=' + folder.id, {name : folder.name });
                 };
                 
                 $scope.deleteFolder = function(folder) {
-
-                    // check if folder is empty
-                	$http.post('admin/api-admin-storage/is-folder-empty?folderId=' + folder.id, $.param({ name : folder.name }), {
-                        headers : {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-                    }).then(function(transport) {
-                        if (transport.data == true) {
-
-                            $http.post('admin/api-admin-storage/folder-delete?folderId=' + folder.id, $.param({ name : folder.name }), {
-                                headers : {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-                            }).then(function(transport) {
+                	$http.post('admin/api-admin-storage/is-folder-empty?folderId=' + folder.id, { name : folder.name }).then(function(transport) {
+                		var isEmpty = transport.data.empty;
+                		var filesCount = transport.data.count;
+                		if (isEmpty) {
+                            $http.post('admin/api-admin-storage/folder-delete?folderId=' + folder.id, { name : folder.name }).then(function(transport) {
                                 $scope.foldersDataReload().then(function() {
-                                    $scope.filesDataReload().then(function() {
-                                        $scope.currentFolderId = 0;
-                                    });
+                                	$scope.currentFolderId = 0;
                                 });
                             });
-
                         } else {
-                            AdminToastService.confirm(i18nParam('layout_filemanager_remove_dir_not_empty', {folderName: folder.name, count: folder.filesCount}), i18n['js_dir_manager_rm_folder_confirm_title'], ['$timeout', '$toast', function($timeout, $toast) {
-                                $http.post('admin/api-admin-storage/folder-delete?folderId=' + folder.id, $.param({ name : folder.name }), {
-                                    headers : {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-                                }).then(function() {
+                            AdminToastService.confirm(i18nParam('layout_filemanager_remove_dir_not_empty', {folderName: folder.name, count: filesCount}), i18n['js_dir_manager_rm_folder_confirm_title'], ['$timeout', '$toast', function($timeout, $toast) {
+                                $http.post('admin/api-admin-storage/folder-delete?folderId=' + folder.id, { name : folder.name }).then(function() {
                                     $scope.foldersDataReload().then(function() {
-                                        $scope.filesDataReload().then(function() {
-                                            $scope.currentFolderId = 0;
-                                            $toast.close();
-                                        });
+                                        $scope.currentFolderId = 0;
+                                        $toast.close();
                                     });
                                 });
                             }]);
@@ -2952,6 +3134,30 @@
                     });
                 };
 
+                $scope.removeFiles = function() {
+                    AdminToastService.confirm(i18n['js_dir_manager_rm_file_confirm'], i18n['js_dir_manager_rm_file_confirm_title'], ['$timeout', '$toast', function($timeout, $toast) {
+                        $http.post('admin/api-admin-storage/filemanager-remove-files', {'ids' : $scope.selectedFiles, 'pageId': $scope.currentPageId, 'folderId': $scope.currentFolderId}).then(function(transport) {
+                            $scope.getFilesForCurrentPage().then(function() {
+                                $toast.close();
+                                AdminToastService.success(i18n['js_dir_manager_rm_file_ok']);
+                                $scope.selectedFiles = [];
+                            	$scope.closeFileDetail();
+                            });
+                        });
+                    }]);
+                }
+
+                $scope.moveFilesTo = function(folderId) {
+                    $http.post('admin/api-admin-storage/filemanager-move-files', {'fileIds' : $scope.selectedFiles, 'toFolderId' : folderId, 'currentPageId': $scope.currentPageId, 'currentFolderId': $scope.currentFolderId}).then(function(transport) {
+                        $scope.getFilesForCurrentPage().then(function() {
+                            $scope.selectedFiles = [];
+                            $scope.showFoldersToMove = false;
+                        });
+                    });
+                };
+                
+                /* file detail related stuff */
+                
                 $scope.fileDetail = false;
 
                 $scope.showFoldersToMove = false;
@@ -2961,22 +3167,27 @@
                 $scope.fileDetailFull = false;
                 
                 $scope.nameEditMode = false;
+
+                $scope.fileDetailFolder = false;
                 
-                $scope.openFileDetail = function(file) {
-                	if ($scope.fileDetail.id == file.id) {
+                $scope.openFileDetail = function(file, force) {
+                	if ($scope.fileDetail.id == file.id && force !== true) {
                 		$scope.closeFileDetail();
                 	} else {
                 		
-                		$http.get('admin/api-admin-storage/file-info?id='+file.id).then(function(response) {
-                			$scope.fileDetailFull = response.data;
-                		});
+                		ServiceFilesData.getFile(file.id, force).then(function(responseFile) {
+                            $scope.fileDetailFull = responseFile;
+                            $scope.fileDetailFolder = $scope.foldersData[responseFile.folder_id];
+                        }, function() {
+
+                        });
                 		
                 		$scope.fileDetail = file;
                 	}
                 };
                 
                 $scope.updateFileData = function() {
-            		$http.put('admin/api-admin-storage/file-update?id='+$scope.fileDetailFull.id, $scope.fileDetailFull).then(function(response) {
+            		$http.put('admin/api-admin-storage/file-update?id='+$scope.fileDetailFull.id+'&pageId='+$scope.currentPageId, $scope.fileDetailFull).then(function(response) {
             			var file = $filter('findidfilter')($scope.filesData, $scope.fileDetail.id, true);
             			file.name = response.data.name_original;
             			$scope.nameEditMode = false;
@@ -2995,39 +3206,10 @@
                 	$scope.removeFiles();
                 };
 
-                $scope.moveFilesTo = function(folderId) {
-                    $http.post('admin/api-admin-storage/filemanager-move-files', $.param({'fileIds' : $scope.selectedFiles, 'toFolderId' : folderId}), {
-                        headers : {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-                    }).then(function(transport) {
-                        $scope.filesDataReload().then(function() {
-                            $scope.selectedFiles = [];
-                            $scope.showFoldersToMove = false;
-                        });
-                    });
-                };
-
-                $scope.removeFiles = function() {
-                    AdminToastService.confirm(i18n['js_dir_manager_rm_file_confirm'], i18n['js_dir_manager_rm_file_confirm_title'], ['$timeout', '$toast', function($timeout, $toast) {
-                        $http.post('admin/api-admin-storage/filemanager-remove-files', $.param({'ids' : $scope.selectedFiles}), {
-                            headers : {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-                        }).then(function(transport) {
-                            $scope.filesDataReload().then(function() {
-                                $toast.close();
-                                AdminToastService.success(i18n['js_dir_manager_rm_file_ok']);
-                                $scope.selectedFiles = [];
-                            	$scope.closeFileDetail();
-                            });
-                        });
-                    }]);
-                }
-
-                // file detail view logic
-
                 $scope.storeFileCaption = function(fileDetail) {
-                	$http.post('admin/api-admin-storage/filemanager-update-caption', $.param({'id': fileDetail.id, 'captionsText' : fileDetail.captionArray}), {
-                        headers : {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-                    }).then(function(transport) {
-                    	AdminToastService.success('Captions has been updated');
+                	$http.post('admin/api-admin-storage/filemanager-update-caption', {'id': fileDetail.id, 'captionsText' : fileDetail.captionArray, 'pageId': $scope.currentPageId}).then(function(transport) {
+                    	// @TODO i18n
+                		AdminToastService.success('Captions has been updated');
                     });
                 }
 
@@ -3036,7 +3218,7 @@
                 $scope.init = function() {
                 	if ($scope.$parent.fileinfo) {
                 		$scope.selectedFileFromParent = $scope.$parent.fileinfo;
-                		$scope.changeCurrentFolderId($scope.selectedFileFromParent.folderId, true);
+                		$scope.changeCurrentFolderId($scope.selectedFileFromParent.folder_id, true);
                 	}
                 }
 
